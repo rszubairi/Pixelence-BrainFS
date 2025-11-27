@@ -25,7 +25,7 @@ st.markdown(
 
 # Parameters
 input_dims = (256, 256, 3)
-output_dims = (256, 256, 1)
+output_dims = (256, 256, 3)
 GENERATOR = None
 
 def generate_suppressed_image(image):

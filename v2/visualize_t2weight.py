@@ -69,7 +69,12 @@ def load_3d_generator():
                 GENERATOR_3D.load_weights('best_weights_t2weight.weights.h5')
                 st.sidebar.write('<h4 style="color:green;">✅ Pre-trained T2-weighted TensorFlow weights loaded!</h4>', unsafe_allow_html=True)
             except:
-                st.sidebar.write('<h4 style="color:orange;">⚠️  Using randomly initialized TensorFlow model</h4>', unsafe_allow_html=True)
+                try:
+                    # Fallback to existing v2 weights
+                    GENERATOR_3D.load_weights('../best_weights_v2.weights.h5')
+                    st.sidebar.write('<h4 style="color:orange;">⚠️  Using existing v2 weights (T2-weighted training not complete)</h4>', unsafe_allow_html=True)
+                except:
+                    st.sidebar.write('<h4 style="color:red;">❌ No trained weights found - using random initialization</h4>', unsafe_allow_html=True)
         elif FRAMEWORK == 'pytorch':
             device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
             GENERATOR_3D = create_3d_generator(in_channels=3, num_modalities=1)

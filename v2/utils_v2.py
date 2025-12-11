@@ -21,6 +21,10 @@ def calculate_ssim_3d(y_true, y_pred, max_val=1.0):
     """
     Calculate SSIM for 3D volumes
     """
+    # Ensure both tensors are the same dtype
+    y_true = tf.cast(y_true, tf.float32)
+    y_pred = tf.cast(y_pred, tf.float32)
+    max_val = tf.cast(max_val, tf.float32)
     return tf.reduce_mean(tf.image.ssim(y_true, y_pred, max_val=max_val, filter_size=5))
 
 

@@ -403,7 +403,8 @@ def display_volume_comparison(original_volume, suppressed_volume, ssim_val, psnr
 
 # Sidebar content
 try:
-    st.sidebar.image("../logo.png", use_container_width=False, width=150)
+    logo_path = os.path.join(os.path.dirname(__file__), '..', 'logo.png')
+    st.sidebar.image(logo_path, use_container_width=False, width=150)
 except FileNotFoundError:
     st.sidebar.markdown("🧠 **3D Fat Suppression v2.0 FROM Pixellence**")
 

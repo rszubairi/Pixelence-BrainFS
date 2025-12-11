@@ -9,7 +9,7 @@ This script implements training for:
 """
 
 from models_v2 import build_3d_generator, build_multimodal_discriminator
-from datagen_v2 import DataGenerator3D, MultiModalDataGenerator, sanity_check_3d_generator
+from datagen_v2 import DataGenerator3D, MultiModalDataGenerator, NiftiBraTSDataGenerator, sanity_check_3d_generator
 from utils_v2 import PerformanceCallback3D, calculate_ssim_3d, calculate_psnr_3d, VGG_loss_3d as VGG_loss
 import tensorflow as tf
 import matplotlib.pyplot as plt
@@ -35,9 +35,44 @@ def train_3d_unet(config):
     print(f"Input shape: {config['input_shape']}")
     print(f"Output shape: {config['output_shape']}")
     print(f"Modalities: {config['num_modalities']}")
+    print(f"Use NIfTI data: {config.get('use_nifti', False)}")
 
     # Create data generators
-    if config['num_modalities'] > 1:
+    if config.get('use_nifti', False):
+        # Use NIfTI BraTS data generator
+        # Create a temporary generator to get the split
+        temp_gen = NiftiBraTSDataGenerator(
+            data_path=config['data_path'],
+            batch_size=config['batch_size'],
+            input_dims=config['input_shape'],
+            output_dims=config['output_shape'],
+            validation_split=0.2
+        )
+        # Training generator
+        data_gen_train = NiftiBraTSDataGenerator(
+            data_path=config['data_path'],
+            batch_size=config['batch_size'],
+            input_dims=config['input_shape'],
+            output_dims=config['output_shape'],
+            validation_split=0.0
+        )
+        data_gen_train.train_patients = temp_gen.train_patients
+        data_gen_train.patient_folders = temp_gen.train_patients
+        data_gen_train.on_epoch_end()
+
+        # Validation generator
+        data_gen_valid = NiftiBraTSDataGenerator(
+            data_path=config['data_path'],
+            batch_size=config['batch_size'],
+            input_dims=config['input_shape'],
+            output_dims=config['output_shape'],
+            validation_split=0.0
+        )
+        data_gen_valid.train_patients = temp_gen.val_patients
+        data_gen_valid.patient_folders = temp_gen.val_patients
+        data_gen_valid.on_epoch_end()
+
+    elif config['num_modalities'] > 1:
         # Multi-modal training
         paths = {f'modality_{i}': config['data_path'] for i in range(config['num_modalities'])}
         data_gen_train = MultiModalDataGenerator(
@@ -102,10 +137,10 @@ def train_3d_unet(config):
             # Add adversarial loss here if needed
             return reconstruction_loss
 
-        gan.compile(optimizer=optimizer_gen, loss=gan_loss, metrics=['mae', calculate_ssim, calculate_psnr])
+        gan.compile(optimizer=optimizer_gen, loss=gan_loss, metrics=['mae', calculate_ssim_3d, calculate_psnr_3d])
         model = gan
     else:
-        generator.compile(optimizer=optimizer_gen, loss=VGG_loss, metrics=['mae', calculate_ssim, calculate_psnr])
+        generator.compile(optimizer=optimizer_gen, loss=VGG_loss, metrics=['mae', calculate_ssim_3d, calculate_psnr_3d])
         model = generator
 
     model.summary()
@@ -253,10 +288,10 @@ def plot_training_history(history, save_path='training_history_v2.png'):
 def main():
     """Main training function with argument parsing"""
     parser = argparse.ArgumentParser(description='Train 3D Multi-modal Fat Suppression v2')
-    parser.add_argument('--data_path', type=str, default='processed/',
-                       help='Path to training data')
-    parser.add_argument('--valid_path', type=str, default='processed/',
-                       help='Path to validation data')
+    parser.add_argument('--data_path', type=str, default=r'C:\Users\rszub\Documents\Brain Dataset\PKG - BraTS-TCGA-LGG',
+                       help='Path to training data (BraTS NIfTI dataset)')
+    parser.add_argument('--valid_path', type=str, default=r'C:\Users\rszub\Documents\Brain Dataset\PKG - BraTS-TCGA-LGG',
+                       help='Path to validation data (BraTS NIfTI dataset)')
     parser.add_argument('--batch_size', type=int, default=1,
                        help='Batch size for training')
     parser.add_argument('--epochs', type=int, default=100,
@@ -275,6 +310,8 @@ def main():
                        help='Width of 3D volumes')
     parser.add_argument('--use_gan', action='store_true',
                        help='Use GAN training instead of supervised learning')
+    parser.add_argument('--use_nifti', action='store_true',
+                       help='Use NIfTI BraTS dataset format (T2 -> FLAIR)')
     parser.add_argument('--sanity_check', action='store_true',
                        help='Run data generator sanity check before training')
 
@@ -293,13 +330,22 @@ def main():
         'input_shape': (args.volume_depth, args.volume_height, args.volume_width,
                        3 * args.num_modalities),  # 3 channels per modality
         'output_shape': (args.volume_depth, args.volume_height, args.volume_width, 1),
-        'use_gan': args.use_gan
+        'use_gan': args.use_gan,
+        'use_nifti': args.use_nifti
     }
 
     # Run sanity check if requested
     if args.sanity_check:
         print("Running data generator sanity check...")
-        if config['num_modalities'] > 1:
+        if config.get('use_nifti', False):
+            test_gen = NiftiBraTSDataGenerator(
+                data_path=config['data_path'],
+                batch_size=1,
+                input_dims=config['input_shape'],
+                output_dims=config['output_shape'],
+                validation_split=0.2
+            )
+        elif config['num_modalities'] > 1:
             paths = {f'modality_{i}': config['data_path'] for i in range(config['num_modalities'])}
             test_gen = MultiModalDataGenerator(
                 paths=paths,
